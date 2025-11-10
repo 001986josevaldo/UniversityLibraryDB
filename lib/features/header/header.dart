@@ -7,6 +7,7 @@ import '../../../../routes/app_routes.dart';
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   // O título que a tela vai exibir
   final String title;
+  final Widget? leading; // icone que vai ser alterado
 
   // Um booleano para decidir se o botão de 'Sair' deve aparecer
   // (útil se você quiser reusar em uma tela que não precise de logout)
@@ -15,6 +16,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   const CustomAppBar({
     super.key,
     required this.title,
+    this.leading,
     //this.showLogoutButton = true, // Por padrão, o botão aparece
   });
 
@@ -29,22 +31,32 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return AppBar(
+      // 1. USA O WIDGET 'leading' QUE FOI PASSADO
+      leading: leading,
+
+      // 2. Título
       title: Text(title),
-      backgroundColor: Colors.teal[300], // Usei a cor do seu design
+
+      // 3. Ações da Direita (Sair)
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.logout, size: 28),
+          tooltip: 'Sair',
+          onPressed: () {
+            // Volta para a tela de login
+            Navigator.pushNamedAndRemoveUntil(
+              context,
+              AppRoutes.login,
+              (route) => false, // Remove todas as telas anteriores
+            );
+          },
+        ),
+      ],
+      backgroundColor: Colors.teal[300]!,
       foregroundColor: Colors.white,
-      /*actions: [
-        // 'if' para mostrar o botão de logout condicionalmente
-        if (showLogoutButton)
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Sair',
-            onPressed: () => _logout(context),
-          ),
-      ],*/
     );
   }
 
-  // Isso é obrigatório para o Flutter saber o tamanho da AppBar
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }

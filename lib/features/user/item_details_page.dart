@@ -40,7 +40,11 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
   @override
   Widget build(BuildContext context) {
     // 1. Recebe o objeto 'book' que foi passado pela UserHomePage
-    final book = ModalRoute.of(context)!.settings.arguments as BookModel;
+    // ✅ Recebe o mapa com os dados vindos da UserHomePage
+    final args =
+        ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+    final BookModel book = args['book'];
+    final String userType = args['userType'];
 
     // Cores baseadas na sua imagem
     //final Color primaryColor = Colors.teal[300]!;

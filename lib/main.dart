@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'features/auth/presentation/page/login_page.dart';
 import 'features/user/homeUser.dart';
-import 'features/admin/homeAdmin.dart';
+import 'features/admin/admin_item_details_page.dart';
 import 'features/user/item_details_page.dart';
 import 'routes/app_routes.dart';
 
@@ -31,8 +31,9 @@ class BibliotecaUniversitariaApp extends StatelessWidget {
         // pagina de detalhes do livro e reservar
         AppRoutes.itemDetails: (context) => const ItemDetailsPage(),
 
+        AppRoutes.adminItemDetails: (context) => const AdminItemDetailsPage(),
         // Quando o Navigator chamar '/admin/home', ele constrói a AdminHomePage
-        AppRoutes.adminHome: (context) => const AdminHomePage(),
+        //AppRoutes.adminHome: (context) => const AdminHomePage(),
       },
     );
   }

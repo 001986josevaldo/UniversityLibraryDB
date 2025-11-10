@@ -49,6 +49,7 @@ class _UserHomePageState extends State<UserHomePage> {
   List<BookModel> _filteredBooks = [];
   bool _searchPerformed = false;
 
+  // Função de busca
   void _runSearch() {
     final query = _searchController.text.trim().toLowerCase();
 
@@ -60,26 +61,32 @@ class _UserHomePageState extends State<UserHomePage> {
         _searchPerformed = true;
         _filteredBooks = _allBooks.where((book) {
           return book.title.toLowerCase().contains(query) ||
-              book.author.toLowerCase().contains(
-                query,
-              ); // 🔹 busca também por autor
+              book.author.toLowerCase().contains(query);
         }).toList();
       }
     });
   }
 
   Color _getStatusColor(String status) {
-    if (status == 'Disponível') return Colors.green[700]!;
-    return Colors.grey[600]!;
+    return status == 'Disponível' ? Colors.green[700]! : Colors.grey[600]!;
   }
 
   @override
   Widget build(BuildContext context) {
+    final userType = ModalRoute.of(context)!.settings.arguments as String;
+
+    final IconData userIcon = (userType == 'admin')
+        ? Icons.admin_panel_settings
+        : Icons.person;
+
     return Scaffold(
-      appBar: const CustomAppBar(title: 'University Library'),
+      appBar: CustomAppBar(
+        title: 'University Library',
+        leading: Icon(userIcon, size: 28),
+      ),
       body: Column(
         children: [
-          // 🔹 Corrigido: precisava estar dentro de um Row
+          // Cabeçalho da busca
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: 16.0,
@@ -119,16 +126,14 @@ class _UserHomePageState extends State<UserHomePage> {
           ),
 
           // Resultados
-          Expanded(child: _buildResultsArea()),
+          Expanded(child: _buildResultsArea(userType)),
         ],
       ),
     );
   }
 
-  Widget _buildResultsArea() {
-    if (!_searchPerformed) {
-      return Container();
-    }
+  Widget _buildResultsArea(String userType) {
+    if (!_searchPerformed) return Container();
 
     if (_filteredBooks.isEmpty) {
       return const Padding(
@@ -163,6 +168,8 @@ class _UserHomePageState extends State<UserHomePage> {
           ),
         ),
         const SizedBox(height: 8),
+
+        // Lista de resultados
         Expanded(
           child: ListView.builder(
             itemCount: _filteredBooks.length,
@@ -171,20 +178,15 @@ class _UserHomePageState extends State<UserHomePage> {
 
               return InkWell(
                 onTap: () async {
-                  if (book.isAvailable) {
-                    await Navigator.pushNamed(
-                      context,
-                      AppRoutes.itemDetails,
-                      arguments: book,
-                    );
-                    if (mounted) {
-                      setState(() {
-                        _searchController.clear();
-                        _filteredBooks = [];
-                        _searchPerformed = false;
-                      });
-                    }
-                  } else {
+                  // Define rota conforme tipo de usuário
+                  final String destinationRoute = (userType == 'admin')
+                      ? AppRoutes.adminItemDetails
+                      : AppRoutes.itemDetails;
+
+                  final arguments = {'book': book, 'userType': userType};
+
+                  // Usuário comum só pode abrir livros disponíveis
+                  if (userType == 'user' && !book.isAvailable) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text(
@@ -193,6 +195,22 @@ class _UserHomePageState extends State<UserHomePage> {
                         backgroundColor: Colors.orange,
                       ),
                     );
+                    return;
+                  }
+
+                  await Navigator.pushNamed(
+                    context,
+                    destinationRoute,
+                    arguments: arguments,
+                  );
+
+                  // Limpa busca ao retornar
+                  if (mounted) {
+                    setState(() {
+                      _searchController.clear();
+                      _filteredBooks = [];
+                      _searchPerformed = false;
+                    });
                   }
                 },
                 child: Card(

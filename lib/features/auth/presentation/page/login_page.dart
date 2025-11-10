@@ -25,15 +25,23 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    // --- LÓGICA DE LOGIN FICTÍCIO ATUALIZADA ---
+    // --- LÓGICA DE LOGIN FICTÍCIO ---
 
     // 2. Verifica o login do Administrador
     if (matricula == 'admin' && senha == 'admin123') {
-      Navigator.pushReplacementNamed(context, AppRoutes.adminHome);
+      Navigator.pushReplacementNamed(
+        context,
+        AppRoutes.adminHome,
+        arguments: 'admin', // arqumento de admin
+      );
 
       // 3. Verifica o login do Usuário comum
     } else if (matricula == 'user' && senha == 'user123') {
-      Navigator.pushReplacementNamed(context, AppRoutes.userHome);
+      Navigator.pushReplacementNamed(
+        context,
+        AppRoutes.userHome,
+        arguments: 'user', // argumento de user
+      );
 
       // 4. Se nenhum for válido, exibe erro
     } else {
