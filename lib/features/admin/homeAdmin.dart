@@ -5,6 +5,8 @@ import 'package:biblio/features/header/header.dart';
 import 'package:biblio/main.dart'; // para supabase
 // 2. IMPORTA bottom,NavBar
 import 'package:biblio/features/navBar/bottomNavBarAdmin.dart';
+// 3. IMPORTE A NOVA PÁGINA/ABA DE ADICIONAR
+import 'package:biblio/features/admin/add_book_page.dart';
 
 class AdminHomePage extends StatefulWidget {
   const AdminHomePage({super.key});
@@ -113,6 +115,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
     return Colors.grey[600]!;
   }
 
+  // função para atualizar a lista de livros
+  void _refreshBooks() async {
+    await _fetchInitialBooks();
+  }
+
   @override
   Widget build(BuildContext context) {
     // A lógica do ícone (userIcon) já funciona e mostrará o ícone de admin
@@ -132,8 +139,15 @@ class _AdminHomePageState extends State<AdminHomePage> {
         children: [
           // Tela 0: Buscar (A mesma lógica da UserHomePage)
           _buildSearchPage(),
+
           // Tela 1: Adicionar Livro (Placeholder)
-          _buildPlaceholderPage('Adicionar Livro'),
+          //_buildPlaceholderPage('Adicionar Livro'),
+          //const AddBookPage(),
+          AddBookPage(
+            onBookAdded:
+                _refreshBooks, // <-- chama quando um livro for cadastrado
+          ),
+
           // Tela 2: Gerenciar (Placeholder)
           _buildPlaceholderPage('Gerenciar Empréstimos'),
         ],
