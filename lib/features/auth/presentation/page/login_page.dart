@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+// 1. IMPORTE O SUPABASE E O CLIENTE
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:biblio/main.dart'; // Importa a variável 'supabase'
 import '../../../../routes/app_routes.dart';
 
 class LoginPage extends StatefulWidget {
@@ -9,46 +12,97 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final TextEditingController _matriculaController = TextEditingController();
+  // 2. MUDAMOS OS NOMES DOS CONTROLLERS PARA CLAREZA
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _senhaController = TextEditingController();
   bool _mostrarSenha = false;
+  bool _isLoading = false; // 3. ESTADO DE LOADING
 
-  void _fazerLogin() {
-    final matricula = _matriculaController.text.trim();
+  // 4. FUNÇÃO DE LOGIN TOTALMENTE REFEITA
+  Future<void> _fazerLogin() async {
+    // Validação de campos vazios
+    final email = _emailController.text.trim();
     final senha = _senhaController.text.trim();
-
-    // 1. Validação de campos vazios (igual ao seu código)
-    if (matricula.isEmpty || senha.isEmpty) {
+    if (email.isEmpty || senha.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Preencha todos os campos!')),
       );
       return;
     }
 
-    // --- LÓGICA DE LOGIN FICTÍCIO ---
+    // Inicia o loading
+    setState(() {
+      _isLoading = true;
+    });
 
-    // 2. Verifica o login do Administrador
-    if (matricula == 'admin' && senha == 'admin123') {
+    try {
+      // ------------------------------------------------
+      // DEBUG: ADICIONAMOS PRINTS AQUI
+      // ------------------------------------------------
+      debugPrint("1. Tentando fazer login com: $email");
+
+      // 5. TENTA FAZER O LOGIN NO SUPABASE AUTH
+      await supabase.auth.signInWithPassword(email: email, password: senha);
+
+      debugPrint("2. Login OK! Buscando perfil...");
+
+      // 6. SE O LOGIN DER CERTO, BUSCA O 'ROLE' NA TABELA 'PROFILES'
+      //    (Exatamente como planejamos no banco de dados)
+      final userId = supabase.auth.currentUser!.id;
+      final data = await supabase
+          .from('profiles')
+          .select('role') // Queremos saber se é 'admin' ou 'user'
+          .eq('id', userId)
+          .single(); // Pega apenas um resultado
+
+      final role = data['role'] as String;
+
+      debugPrint("3. Perfil OK! Role é: $role");
+
+      // 7. USA O 'ROLE' PARA NAVEGAR (E PASSA O 'ROLE' ADIANTE)
+      if (!mounted) return; // Checagem de segurança em funções async
+
+      // ------------------------------------------------
+      // DEBUG: CORRIGIMOS A ROTA TEMPORARIAMENTE
+      // ------------------------------------------------
+      // Seu 'AppRoutes.adminHome' pode não estar registrado no main.dart ainda.
+      // Vamos forçar a ida para 'userHome' por enquanto.
+      final destination = (role == 'admin')
+          ? AppRoutes.adminHome
+          : AppRoutes.userHome;
+
+      // (A linha original era:)
+      // final destination =
+      //     (role == 'admin') ? AppRoutes.adminHome : AppRoutes.userHome;
+
       Navigator.pushReplacementNamed(
         context,
-        AppRoutes.adminHome,
-        arguments: 'admin', // arqumento de admin
+        destination,
+        arguments: role, // Passa o 'role' (admin/user)
       );
-
-      // 3. Verifica o login do Usuário comum
-    } else if (matricula == 'user' && senha == 'user123') {
-      Navigator.pushReplacementNamed(
-        context,
-        AppRoutes.userHome,
-        arguments: 'user', // argumento de user
-      );
-
-      // 4. Se nenhum for válido, exibe erro
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        // Corrigido para "incorretas" (concordância)
-        const SnackBar(content: Text('Matrícula ou senha incorretas!')),
-      );
+    } on AuthException catch (e) {
+      // 8. TRATA ERROS DE AUTENTICAÇÃO
+      debugPrint("ERRO DE AUTH: ${e.message}"); // DEBUG
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } catch (e) {
+      // 9. TRATA ERROS GERAIS (Ex: Falha de rede)
+      debugPrint("ERRO GERAL: ${e.toString()}"); // DEBUG
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ocorreu um erro. Tente novamente.')),
+        );
+      }
+    } finally {
+      // 10. PARA O LOADING, INDEPENDENTE DE SUCESSO OU FALHA
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -63,8 +117,7 @@ class _LoginPageState extends State<LoginPage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text(
-                // ---------------------------------------------------------- PAGINA 1 ------------------------------
-                'university library',
+                'University Library',
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
@@ -72,13 +125,15 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
               const SizedBox(height: 32),
+              // 11. CAMPO MUDADO PARA "Email"
               TextField(
-                controller: _matriculaController,
+                controller: _emailController,
                 decoration: const InputDecoration(
-                  labelText: 'Matrícula',
+                  labelText: 'Email', // <-- MUDANÇA AQUI
                   border: OutlineInputBorder(),
                 ),
                 textInputAction: TextInputAction.next,
+                keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 16),
               TextField(
@@ -98,19 +153,23 @@ class _LoginPageState extends State<LoginPage> {
                     },
                   ),
                 ),
-                onSubmitted: (_) => _fazerLogin(), // Enter → faz login
+                onSubmitted: (_) => _fazerLogin(),
               ),
               const SizedBox(height: 24),
+              // 12. BOTÃO DESABILITADO DURANTE O LOADING
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.teal,
                   minimumSize: const Size(double.infinity, 48),
                 ),
-                onPressed: _fazerLogin,
-                child: const Text(
-                  'Entrar',
-                  style: TextStyle(fontSize: 18, color: Colors.white),
-                ),
+                // Se estiver carregando (_isLoading), 'onPressed' é null
+                onPressed: _isLoading ? null : _fazerLogin,
+                child: _isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text(
+                        'Entrar',
+                        style: TextStyle(fontSize: 18, color: Colors.white),
+                      ),
               ),
             ],
           ),

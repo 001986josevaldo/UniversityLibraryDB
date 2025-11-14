@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:biblio/features/models/book_model.dart';
 import '../../../../routes/app_routes.dart';
 import 'package:biblio/features/header/header.dart';
+import 'package:biblio/main.dart'; // para supabase
+// 2. IMPORTA bottom,NavBar
+import 'package:biblio/features/navBar/bottomNavBar.dart';
 
 class UserHomePage extends StatefulWidget {
   const UserHomePage({super.key});
@@ -13,53 +16,99 @@ class UserHomePage extends StatefulWidget {
 class _UserHomePageState extends State<UserHomePage> {
   final TextEditingController _searchController = TextEditingController();
 
-  final List<BookModel> _allBooks = [
-    BookModel(
-      title: 'Livro1',
-      author: 'Autor do Livro 1',
-      status: 'Disponível',
-      location: 'Corredor 5, Seção A',
-    ),
-    BookModel(
-      title: 'Livro2',
-      author: 'Autor do Livro 2',
-      status: 'Emprestado',
-      location: 'Corredor 2, Seção B',
-    ),
-    BookModel(
-      title: 'Flutter',
-      author: 'Alex Silva',
-      status: 'Disponível',
-      location: 'Corredor 1, Seção A',
-    ),
-    BookModel(
-      title: 'Dart',
-      author: 'Maria Souza',
-      status: 'Disponível',
-      location: 'Corredor 1, Seção A',
-    ),
-    BookModel(
-      title: 'Engenharia',
-      author: 'Carlos Paiva',
-      status: 'Emprestado',
-      location: 'Corredor 3, Seção C',
-    ),
-  ];
+  // --- ESTADOS DA TELA ---
 
-  List<BookModel> _filteredBooks = [];
-  bool _searchPerformed = false;
+  List<BookModel> _masterBookList = []; // Guarda a todos os livros do DB
+  List<BookModel> _filteredBooks = []; // Guarda a lista filtrada
+  bool _isLoading = true; // Controla o loading inicial
+  String _userType = ''; // Guarda o tipo de usuário
+  // 3. NOVO ESTADO PARA CONTROLAR A ABA ATIVA
+  int _selectedIndex = 0; // "Buscar" é a aba 0 (inicial)
 
-  // Função de busca
-  void _runSearch() {
+  // 2. BUSCA OS DADOS NO 'initState' (QUANDO A TELA INICIA)
+  @override
+  void initState() {
+    super.initState();
+    // Adiciona o listener para o filtro em tempo real
+    _searchController.addListener(_onSearchChanged);
+    // Busca os livros
+    _fetchInitialBooks(); // busca os dados a primeira vez
+  }
+
+  // 3. PEGA O 'userType' QUANDO AS DEPENDÊNCIAS MUDAM
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Pega o 'userType' ('admin' ou 'user') vindo do login
+    _userType = ModalRoute.of(context)!.settings.arguments as String;
+  }
+
+  // 4. LIMPEZA DOS CONTROLLERS
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // 4. NOVA FUNÇÃO CHAMADA QUANDO UMA ABA É TOCADA
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  // 4. FUNÇÃO DE BUSCA NO SUPABASE
+  //    (AGORA TAMBÉM MOSTRA O LOADING)
+  Future<void> _fetchInitialBooks() async {
+    // 1. ADICIONAMOS O LOADING NO INÍCIO
+    //    (Isso garante que o loading apareça ao recarregar)
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
+
+    try {
+      final data = await supabase.from('books').select();
+
+      if (mounted) {
+        final books = data.map((map) => BookModel.fromMap(map)).toList();
+        setState(() {
+          _masterBookList = books;
+          // 2. ATUALIZAMOS O FILTRO
+          //    Isso garante que, se o usuário voltar,
+          //    o filtro (mesmo limpo) seja aplicado aos novos dados.
+          _filterBooks(_searchController.text.trim().toLowerCase());
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao buscar livros: ${e.toString()}')),
+        );
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // 6. FUNÇÃO DO FILTRO EM TEMPO REAL (COMO VOCÊ PEDIU)
+  void _onSearchChanged() {
     final query = _searchController.text.trim().toLowerCase();
+    _filterBooks(query);
+  }
 
+  void _filterBooks(String query) {
     setState(() {
       if (query.isEmpty) {
-        _filteredBooks = [];
-        _searchPerformed = false;
+        // Se a busca está vazia, mostra todos os livros
+        _filteredBooks = _masterBookList;
       } else {
-        _searchPerformed = true;
-        _filteredBooks = _allBooks.where((book) {
+        // Filtra a lista mestre
+        _filteredBooks = _masterBookList.where((book) {
           return book.title.toLowerCase().contains(query) ||
               book.author.toLowerCase().contains(query);
         }).toList();
@@ -67,15 +116,21 @@ class _UserHomePageState extends State<UserHomePage> {
     });
   }
 
-  Color _getStatusColor(String status) {
-    return status == 'Disponível' ? Colors.green[700]! : Colors.grey[600]!;
+  // FUNÇÃO DE COR
+  Color _getAvailabilityColor(int available) {
+    if (available > 1) {
+      return Colors.green[700]!; // Disponível para reserva
+    }
+    if (available == 1) {
+      return Colors.orange[800]!; // Mínimo atingido (não reserva)
+    }
+    return Colors.grey[600]!; // Emprestado
   }
 
   @override
   Widget build(BuildContext context) {
-    final userType = ModalRoute.of(context)!.settings.arguments as String;
-
-    final IconData userIcon = (userType == 'admin')
+    // Escolhe o ícone do usuário para a AppBar
+    final IconData userIcon = (_userType == 'admin')
         ? Icons.admin_panel_settings
         : Icons.person;
 
@@ -84,58 +139,91 @@ class _UserHomePageState extends State<UserHomePage> {
         title: 'University Library',
         leading: Icon(userIcon, size: 28),
       ),
-      body: Column(
+
+      // 5. O 'body' AGORA USA O 'IndexedStack' PARA TROCAR DE TELA
+      //    sem perder o estado de cada aba
+      body: IndexedStack(
+        index: _selectedIndex,
         children: [
-          // Cabeçalho da busca
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 12.0,
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.menu, color: Colors.teal[800]),
-                const SizedBox(width: 16),
-                Text(
-                  'Buscar no Acervo',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.teal[800],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Campo de busca
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Digite sua busca...',
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.search),
-                  onPressed: _runSearch,
-                ),
-                border: const OutlineInputBorder(),
-              ),
-              onSubmitted: (_) => _runSearch(),
-            ),
-          ),
-
-          // Resultados
-          Expanded(child: _buildResultsArea(userType)),
+          // Tela 0: Buscar (Sua lógica antiga)
+          _buildSearchPage(),
+          // Tela 1: Minhas Reservas (Placeholder)
+          _buildPlaceholderPage('Minhas Reservas'),
+          // Tela 2: Perfil (Placeholder)
+          _buildPlaceholderPage('Perfil'),
         ],
+      ),
+
+      // 6. ADICIONA A BARRA DE NAVEGAÇÃO REUTILIZÁVEL
+      bottomNavigationBar: CustomBottomNavBar(
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
       ),
     );
   }
 
-  Widget _buildResultsArea(String userType) {
-    if (!_searchPerformed) return Container();
+  // 7. A LÓGICA DE BUSCA FOI MOVIDA PARA ESTE WIDGET
+  Widget _buildSearchPage() {
+    return _isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 12.0,
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.menu, color: Colors.teal[800]),
+                    const SizedBox(width: 16),
+                    Text(
+                      'Buscar no Acervo',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.teal[800],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Digite o título ou autor...',
+                    suffixIcon: IconButton(
+                      icon: _searchController.text.isEmpty
+                          ? const Icon(Icons.search)
+                          : const Icon(Icons.clear),
+                      onPressed: () {
+                        if (_searchController.text.isNotEmpty) {
+                          _searchController.clear();
+                        }
+                      },
+                    ),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              Expanded(child: _buildResultsArea()),
+            ],
+          );
+  }
 
+  // Área de Resultados (Não mudou)
+  Widget _buildResultsArea() {
     if (_filteredBooks.isEmpty) {
+      if (_masterBookList.isEmpty && !_isLoading) {
+        return const Center(
+          child: Text(
+            'Nenhum livro cadastrado no sistema.',
+            style: TextStyle(fontSize: 18, color: Colors.grey),
+          ),
+        );
+      }
       return const Padding(
         padding: EdgeInsets.all(16.0),
         child: Center(
@@ -151,6 +239,7 @@ class _UserHomePageState extends State<UserHomePage> {
       );
     }
 
+    // Se temos resultados, mostramos a lista
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -168,8 +257,6 @@ class _UserHomePageState extends State<UserHomePage> {
           ),
         ),
         const SizedBox(height: 8),
-
-        // Lista de resultados
         Expanded(
           child: ListView.builder(
             itemCount: _filteredBooks.length,
@@ -178,39 +265,43 @@ class _UserHomePageState extends State<UserHomePage> {
 
               return InkWell(
                 onTap: () async {
-                  // Define rota conforme tipo de usuário
-                  final String destinationRoute = (userType == 'admin')
-                      ? AppRoutes.adminItemDetails
-                      : AppRoutes.itemDetails;
+                  bool didNavigate = false;
 
-                  final arguments = {'book': book, 'userType': userType};
-
-                  // Usuário comum só pode abrir livros disponíveis
-                  if (userType == 'user' && !book.isAvailable) {
+                  // Se for ADMIN
+                  if (_userType == 'admin') {
+                    await Navigator.pushNamed(
+                      context,
+                      AppRoutes.adminItemDetails,
+                      arguments: {'book': book, 'userType': _userType},
+                    );
+                    didNavigate = true;
+                  }
+                  // Se for USER
+                  else if (book.canBeReserved) {
+                    await Navigator.pushNamed(
+                      context,
+                      AppRoutes.itemDetails,
+                      arguments: {'book': book, 'userType': _userType},
+                    );
+                    didNavigate = true;
+                  }
+                  // Se for USER e não pode reservar
+                  else {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
+                      SnackBar(
                         content: Text(
-                          'Este livro não está disponível para reserva.',
+                          'Este livro não está disponível para reserva no momento.',
                         ),
-                        backgroundColor: Colors.orange,
+                        backgroundColor: Colors.orange[800],
                       ),
                     );
-                    return;
                   }
 
-                  await Navigator.pushNamed(
-                    context,
-                    destinationRoute,
-                    arguments: arguments,
-                  );
-
-                  // Limpa busca ao retornar
-                  if (mounted) {
-                    setState(() {
-                      _searchController.clear();
-                      _filteredBooks = [];
-                      _searchPerformed = false;
-                    });
+                  // A CORREÇÃO:
+                  //    Recarrega os livros do Supabase ao voltar
+                  if (didNavigate && mounted) {
+                    _searchController.clear();
+                    await _fetchInitialBooks();
                   }
                 },
                 child: Card(
@@ -236,11 +327,13 @@ class _UserHomePageState extends State<UserHomePage> {
                         Text(book.author, style: const TextStyle(fontSize: 15)),
                         const SizedBox(height: 8),
                         Text(
-                          'Status: [${book.status}]',
+                          'Disponíveis: ${book.quantity_available} (de ${book.quantity_total})',
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w500,
-                            color: _getStatusColor(book.status),
+                            color: _getAvailabilityColor(
+                              book.quantity_available,
+                            ),
                           ),
                         ),
                       ],
@@ -252,6 +345,16 @@ class _UserHomePageState extends State<UserHomePage> {
           ),
         ),
       ],
+    );
+  }
+
+  // 8. WIDGET DE PLACEHOLDER PARA AS NOVAS ABAS
+  Widget _buildPlaceholderPage(String title) {
+    return Center(
+      child: Text(
+        '$title (Em breve)',
+        style: const TextStyle(fontSize: 24, color: Colors.grey),
+      ),
     );
   }
 }
