@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/book_model.dart';
 import 'package:biblio/features/header/header.dart';
 import 'package:biblio/main.dart';
+import 'package:biblio/features/admin/edit_boook_page.dart';
 
 class AdminItemDetailsPage extends StatefulWidget {
   const AdminItemDetailsPage({super.key});
@@ -16,6 +17,7 @@ class _AdminItemDetailsPageState extends State<AdminItemDetailsPage> {
 
   // --- Remover Livro ---
   Future<void> _deleteBook(BookModel book) async {
+    // ... (toda a sua lógica de _deleteBook permanece igual) ...
     // 🔍 1. Verificar se o livro possui reservas
     final reservations = await supabase
         .from('reservations')
@@ -35,7 +37,7 @@ class _AdminItemDetailsPageState extends State<AdminItemDetailsPage> {
       return; // 🔚 encerra a função aqui
     }
 
-    // 🔄 2. Se chegou aqui, pode excluir normalmente
+    // 🔄 2. Se chegou aqui, pode excluir normally
     setState(() {
       _isDeleting = true;
     });
@@ -73,6 +75,7 @@ class _AdminItemDetailsPageState extends State<AdminItemDetailsPage> {
 
   // --- Dar baixa ---
   Future<void> _returnBook(BookModel book) async {
+    // ... (toda a sua lógica de _returnBook permanece igual) ...
     setState(() => _isReturning = true);
 
     try {
@@ -88,9 +91,10 @@ class _AdminItemDetailsPageState extends State<AdminItemDetailsPage> {
         Navigator.pop(context);
       }
     } catch (e) {
-      final String msg = e.toString().contains("Estoque já está cheio")
-          ? 'Não é possível devolver: Estoque cheio.'
-          : 'Erro ao dar baixa: $e';
+      final String msg = 'Não é possível devolver: Estoque cheio.';
+      //final String msg = e.toString().contains("Estoque já está cheio")
+      // 	? 'Não é possível devolver: Estoque cheio.'
+      // 	: 'Erro ao dar baixa: $e';
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -103,10 +107,21 @@ class _AdminItemDetailsPageState extends State<AdminItemDetailsPage> {
   }
 
   // --- Editar Livro (placeholder) ---
-  void _editBook(BookModel book) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Tela de edição ainda não implementada.')),
+
+  void _editBook(BookModel book) async {
+    // 1. Adicione 'async'
+
+    // 2. Aguarde o resultado da tela de edição
+    final bool? savedSuccessfully = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => EditBookPage(book: book)),
     );
+
+    // 3. Se 'savedSuccessfully' for true (ou seja, o usuário salvou),
+    //    feche também esta tela (AdminItemDetailsPage) para voltar à lista.
+    if (savedSuccessfully == true && mounted) {
+      Navigator.pop(context);
+    }
   }
 
   @override
@@ -152,57 +167,64 @@ class _AdminItemDetailsPageState extends State<AdminItemDetailsPage> {
         ),
       ),
 
-      // -----------------------------
-      // NOVO “NAVBAR ADMINISTRATIVO”
-      // -----------------------------
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Colors.white,
-        selectedItemColor: Colors.teal[800],
-        unselectedItemColor: Colors.grey[600],
-        showSelectedLabels: true,
-        showUnselectedLabels: true,
+      // ------------------------------------
+      // ✨ CÓDIGO MAIS LIMPO AQUI ✨
+      // Agora apenas chamamos nosso novo método
+      // ------------------------------------
+      bottomNavigationBar: _buildActionNavBar(book),
+    );
+  }
 
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              if (!_isDeleting) _deleteBook(book);
-              break;
-            case 1:
-              if (!_isReturning) _returnBook(book);
-              break;
-            case 2:
-              _editBook(book);
-              break;
-          }
-        },
+  // --------------------------------------------------
+  // ✨ NOVO MÉTODO EXTRAÍDO ✨
+  // Movemos toda a lógica da barra para cá,
+  // mantendo o método build() principal limpo.
+  // --------------------------------------------------
+  Widget _buildActionNavBar(BookModel book) {
+    return BottomNavigationBar(
+      backgroundColor: Colors.white,
+      selectedItemColor: Colors.teal[800],
+      unselectedItemColor: Colors.grey[600],
+      showSelectedLabels: true,
+      showUnselectedLabels: true,
 
-        items: [
-          BottomNavigationBarItem(
-            icon: _isDeleting
-                ? const SizedBox(
-                    height: 18,
-                    width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.delete),
-            label: "Remover",
-          ),
-          BottomNavigationBarItem(
-            icon: _isReturning
-                ? const SizedBox(
-                    height: 18,
-                    width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.restart_alt),
-            label: "Baixa",
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.edit),
-            label: "Editar",
-          ),
-        ],
-      ),
+      onTap: (index) {
+        switch (index) {
+          case 0:
+            if (!_isDeleting) _deleteBook(book);
+            break;
+          case 1:
+            if (!_isReturning) _returnBook(book);
+            break;
+          case 2:
+            _editBook(book);
+            break;
+        }
+      },
+
+      items: [
+        BottomNavigationBarItem(
+          icon: _isDeleting
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.delete),
+          label: "Remover",
+        ),
+        BottomNavigationBarItem(
+          icon: _isReturning
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.restart_alt),
+          label: "Baixa",
+        ),
+        const BottomNavigationBarItem(icon: Icon(Icons.edit), label: "Editar"),
+      ],
     );
   }
 }

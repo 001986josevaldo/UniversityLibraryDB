@@ -1,25 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:biblio/main.dart'; // Para a variável 'supabase'
+import 'package:biblio/main.dart';
+import 'package:biblio/features/models/book_model.dart';
 
-/// Este é o widget que representa a "tela" da Aba 1 (Adicionar Livro).
 class AddBookPage extends StatefulWidget {
-  final VoidCallback? onBookAdded; // <-- ADICIONADO
+  final VoidCallback? onBookAdded;
+  final BookModel? existingBook;
 
-  const AddBookPage({
-    super.key,
-    this.onBookAdded, // <-- ADICIONADO
-  });
+  const AddBookPage({super.key, this.onBookAdded, this.existingBook});
 
   @override
   State<AddBookPage> createState() => _AddBookPageState();
 }
 
 class _AddBookPageState extends State<AddBookPage> {
-  // Chave global para validar o formulário
   final _formKey = GlobalKey<FormState>();
 
-  // Controladores para cada campo do formulário
   final _titleController = TextEditingController();
   final _authorController = TextEditingController();
   final _locationController = TextEditingController();
@@ -27,27 +23,57 @@ class _AddBookPageState extends State<AddBookPage> {
 
   bool _isLoading = false;
 
-  // Função para salvar o livro no Supabase
-  Future<void> _saveBook() async {
-    // 1. Valida o formulário
-    if (!_formKey.currentState!.validate()) {
-      return; // Se não for válido, não faz nada
-    }
+  @override
+  void initState() {
+    super.initState();
 
-    setState(() {
-      _isLoading = true;
-    });
+    // Preenche dados caso seja edição
+    if (widget.existingBook != null) {
+      _titleController.text = widget.existingBook!.title;
+      _authorController.text = widget.existingBook!.author;
+      _locationController.text = widget.existingBook!.location;
+      _quantityController.text = widget.existingBook!.quantity_total.toString();
+    }
+  }
+
+  // --- Criar ou Editar Livro ---
+  Future<void> _saveBook() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
 
     try {
-      // 2. Pega os valores dos controladores
-      final title = _titleController.text;
-      final author = _authorController.text;
-      final location = _locationController.text;
-      // Converte a quantidade para int (ou 0 se for inválido)
-      final quantity = int.tryParse(_quantityController.text) ?? 0;
+      final title = _titleController.text.trim();
+      final author = _authorController.text.trim();
+      final location = _locationController.text.trim();
+      final quantity = int.tryParse(_quantityController.text.trim()) ?? 0;
 
-      // 3. Insere no Supabase
-      //    (Conforme a sua regra, quantity_available começa igual a quantity_total)
+      // ======== EDITAR ========
+      if (widget.existingBook != null) {
+        await supabase
+            .from('books')
+            .update({
+              'title': title,
+              'author': author,
+              'location': location,
+              'quantity_total': quantity,
+            })
+            .eq('id', widget.existingBook!.id);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Livro "$title" atualizado com sucesso!'),
+              backgroundColor: Colors.green[700],
+            ),
+          );
+        }
+
+        Navigator.pop(context, true);
+        return;
+      }
+
+      // ======== CRIAR ========
       await supabase.from('books').insert({
         'title': title,
         'author': author,
@@ -56,7 +82,6 @@ class _AddBookPageState extends State<AddBookPage> {
         'quantity_available': quantity,
       });
 
-      // 4. Sucesso!
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -64,9 +89,9 @@ class _AddBookPageState extends State<AddBookPage> {
             backgroundColor: Colors.green[700],
           ),
         );
-        // 🔥 CHAMA O CALLBACK PARA AVISAR A TELA MÃE que um novo livro foi inserido
+
         widget.onBookAdded?.call();
-        // Limpa o formulário
+
         _formKey.currentState!.reset();
         _titleController.clear();
         _authorController.clear();
@@ -74,27 +99,23 @@ class _AddBookPageState extends State<AddBookPage> {
         _quantityController.clear();
       }
     } catch (e) {
-      // 5. Erro
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erro ao cadastrar livro: ${e.toString()}'),
+            content: Text('Erro ao salvar livro: $e'),
             backgroundColor: Colors.red,
           ),
         );
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
     }
   }
 
   @override
   void dispose() {
-    // Limpa os controladores
     _titleController.dispose();
     _authorController.dispose();
     _locationController.dispose();
@@ -104,8 +125,8 @@ class _AddBookPageState extends State<AddBookPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Usamos SingleChildScrollView para evitar overflow
-    // quando o teclado aparecer
+    final isEditing = widget.existingBook != null;
+
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -114,9 +135,8 @@ class _AddBookPageState extends State<AddBookPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // --- Título ---
               Text(
-                'Cadastrar Novo Livro',
+                isEditing ? 'Editar Livro' : 'Cadastrar Novo Livro',
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
@@ -125,7 +145,6 @@ class _AddBookPageState extends State<AddBookPage> {
               ),
               const SizedBox(height: 24),
 
-              // --- Campo Título ---
               TextFormField(
                 controller: _titleController,
                 decoration: const InputDecoration(
@@ -133,16 +152,11 @@ class _AddBookPageState extends State<AddBookPage> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.book),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira um título.';
-                  }
-                  return null;
-                },
+                validator: (v) =>
+                    v == null || v.isEmpty ? 'Informe o título' : null,
               ),
               const SizedBox(height: 16),
 
-              // --- Campo Autor ---
               TextFormField(
                 controller: _authorController,
                 decoration: const InputDecoration(
@@ -150,33 +164,23 @@ class _AddBookPageState extends State<AddBookPage> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.person),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira um autor.';
-                  }
-                  return null;
-                },
+                validator: (v) =>
+                    v == null || v.isEmpty ? 'Informe o autor' : null,
               ),
               const SizedBox(height: 16),
 
-              // --- Campo Localização ---
               TextFormField(
                 controller: _locationController,
                 decoration: const InputDecoration(
-                  labelText: 'Localização (Ex: Corredor 1, Seção A)',
+                  labelText: 'Localização',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.location_on),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira a localização.';
-                  }
-                  return null;
-                },
+                validator: (v) =>
+                    v == null || v.isEmpty ? 'Informe a localização' : null,
               ),
               const SizedBox(height: 16),
 
-              // --- Campo Quantidade Total ---
               TextFormField(
                 controller: _quantityController,
                 decoration: const InputDecoration(
@@ -184,32 +188,29 @@ class _AddBookPageState extends State<AddBookPage> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.inventory),
                 ),
-                // Define o teclado para aceitar apenas números
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira a quantidade.';
-                  }
-                  if (int.tryParse(value) == null || int.parse(value) <= 0) {
-                    return 'Por favor, insira um número válido maior que 0.';
-                  }
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Informe a quantidade';
+                  final n = int.tryParse(v);
+                  if (n == null || n <= 0) return 'Número inválido';
                   return null;
                 },
               ),
               const SizedBox(height: 32),
 
-              // --- Botão Salvar ---
               ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                // Desabilita o botão durante o loading
                 onPressed: _isLoading ? null : _saveBook,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: Colors.teal,
+                ),
                 child: Text(
-                  _isLoading ? 'Salvando...' : 'Cadastrar Livro',
+                  _isLoading
+                      ? 'Salvando...'
+                      : isEditing
+                      ? 'Salvar Alterações'
+                      : 'Cadastrar Livro',
                   style: const TextStyle(fontSize: 18),
                 ),
               ),

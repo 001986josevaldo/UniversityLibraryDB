@@ -28,8 +28,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(_onSearchChanged);
-    _fetchInitialBooks(); // Busca os dados na primeira vez
+    _fetchInitialBooks(); // Carrega os livros
   }
 
   @override
@@ -120,6 +119,20 @@ class _AdminHomePageState extends State<AdminHomePage> {
     await _fetchInitialBooks();
   }
 
+  // ✨ 1. NOVA FUNÇÃO (CALLBACK)
+  // Esta função irá ATUALIZAR a lista E MUDAR a aba
+  void _handleBookAdded() async {
+    // 1. Atualiza a lista de livros
+    await _fetchInitialBooks();
+
+    // 2. Muda para a aba "Buscar" (índice 0)
+    if (mounted) {
+      setState(() {
+        _selectedIndex = 0;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // A lógica do ícone (userIcon) já funciona e mostrará o ícone de admin
@@ -140,12 +153,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
           // Tela 0: Buscar (A mesma lógica da UserHomePage)
           _buildSearchPage(),
 
-          // Tela 1: Adicionar Livro (Placeholder)
-          //_buildPlaceholderPage('Adicionar Livro'),
-          //const AddBookPage(),
+          // Tela 1: Adicionar Livro
           AddBookPage(
-            onBookAdded:
-                _refreshBooks, // <-- chama quando um livro for cadastrado
+            // ✨ 2. MUDANÇA AQUI
+            // Trocamos _refreshBooks por _handleBookAdded
+            onBookAdded: _handleBookAdded,
           ),
 
           // Tela 2: Gerenciar (Placeholder)
@@ -162,13 +174,14 @@ class _AdminHomePageState extends State<AdminHomePage> {
   }
 
   // --- WIDGETS DAS ABAS ---
+  // (O restante do arquivo permanece exatamente igual)
 
   // A LÓGICA DE BUSCA (Aba 0)
-  // (Exatamente a mesma da UserHomePage)
   Widget _buildSearchPage() {
     return _isLoading
         ? const Center(child: CircularProgressIndicator())
         : Column(
+            // ... (código idêntico) ...
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(
@@ -216,8 +229,8 @@ class _AdminHomePageState extends State<AdminHomePage> {
   }
 
   // Área de Resultados (Aba 0)
-  // (Exatamente a mesma da UserHomePage)
   Widget _buildResultsArea() {
+    // ... (código idêntico) ...
     if (_filteredBooks.isEmpty) {
       if (_masterBookList.isEmpty && !_isLoading) {
         return const Center(
