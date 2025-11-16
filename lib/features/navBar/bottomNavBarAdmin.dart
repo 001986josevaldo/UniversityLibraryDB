@@ -30,8 +30,8 @@ class CustomAdminNavBar extends StatelessWidget {
           label: 'Adicionar', // (Aba 1)
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.admin_panel_settings),
-          label: 'Gerenciar', // (Aba 2)
+          icon: Icon(Icons.bookmark),
+          label: 'Reservas', // (Aba 2)
         ),
       ],
 
